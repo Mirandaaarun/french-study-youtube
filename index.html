@@ -44,6 +44,18 @@
   header .accent { color: var(--accent); }
 
   main { padding: 20px 24px 60px; max-width: 1100px; margin: 0 auto; }
+  .quick-actions {
+    display: grid; gap: 10px; margin-bottom: 18px;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  }
+  .action {
+    border: 1px solid var(--border); border-radius: 8px; padding: 13px;
+    background: var(--panel); color: var(--text); text-align: left;
+    cursor: pointer; font: inherit; text-decoration: none;
+  }
+  .action:hover { border-color: var(--accent); }
+  .action strong { display: block; font-size: 14px; margin-bottom: 3px; }
+  .action span { display: block; color: var(--muted); font-size: 12px; }
   .tools {
     display: grid; gap: 12px; margin-bottom: 18px;
   }
@@ -148,6 +160,7 @@
   <div class="tag" id="count">Loading…</div>
 </header>
 <main>
+  <div class="quick-actions" id="quick-actions"></div>
   <div class="tools">
     <input class="search" id="search" type="search" placeholder="Search videos, themes, creators…" autocomplete="off">
     <div class="chips" id="levels"></div>
@@ -191,14 +204,56 @@ async function init() {
     (b.lesson_date || b.added || "").localeCompare(a.lesson_date || a.added || "")
   );
   bindControls();
+  renderQuickActions();
   render();
 }
 
+function renderQuickActions() {
+  const root = document.getElementById("quick-actions");
+  const latest = allVideos[0];
+  const a1Path = allVideos.find(v => (v.study_paths || []).includes("Start Here: A1"));
+  const questions = allVideos.find(v => (v.themes || []).includes("questions"));
+  root.innerHTML = "";
+  if (latest) root.appendChild(actionLink("Continue latest", latest.title || latest.id, `${latest.id}/`));
+  if (a1Path) root.appendChild(actionButton("Start Here: A1", "Show beginner-friendly lessons", () => {
+    activePath = "Start Here: A1"; activeLevel = "all"; activeTheme = "all"; query = "";
+    document.getElementById("search").value = "";
+    bindControls(); render();
+  }));
+  if (questions) root.appendChild(actionButton("Practice questions", "Filter question-form lessons", () => {
+    activeTheme = "questions"; activePath = "all"; activeLevel = "all"; query = "";
+    document.getElementById("search").value = "";
+    bindControls(); render();
+  }));
+  root.appendChild(actionButton("Friend mode", "Show public A1/A2-friendly lessons", () => {
+    activeLevel = "A1-A2"; activeTheme = "all"; activePath = "all"; query = "";
+    document.getElementById("search").value = "";
+    bindControls(); render();
+  }));
+}
+
+function actionLink(title, sub, href) {
+  const a = document.createElement("a");
+  a.className = "action";
+  a.href = href;
+  a.innerHTML = `<strong>${escapeHtml(title)}</strong><span>${escapeHtml(sub)}</span>`;
+  return a;
+}
+
+function actionButton(title, sub, onClick) {
+  const b = document.createElement("button");
+  b.className = "action";
+  b.type = "button";
+  b.innerHTML = `<strong>${escapeHtml(title)}</strong><span>${escapeHtml(sub)}</span>`;
+  b.addEventListener("click", onClick);
+  return b;
+}
+
 function bindControls() {
-  document.getElementById("search").addEventListener("input", e => {
+  document.getElementById("search").oninput = e => {
     query = e.target.value.trim().toLowerCase();
     render();
-  });
+  };
   renderChips("levels", ["all", ...unique(allVideos.map(v => v.level).filter(Boolean))], activeLevel, value => {
     activeLevel = value;
     render();

@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1015">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="French Study">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="manifest" href="manifest.json">
+<title>French Study — Library</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:ital,wght@0,500;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b1015;
+    --panel: #141a22;
+    --panel-2: #1a212b;
+    --border: #232b37;
+    --text: #e6edf3;
+    --muted: #8b96a4;
+    --dim: #5c6675;
+    --accent: #f5a524;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    font: 15px/1.5 "Inter", system-ui, -apple-system, sans-serif;
+    background: var(--bg); color: var(--text);
+  }
+  header {
+    padding: 28px 24px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+  }
+  header h1 {
+    font-family: "Source Serif 4", serif; font-style: italic;
+    margin: 0 0 4px 0; font-size: 26px; letter-spacing: -0.02em;
+  }
+  header .tag { color: var(--muted); font-size: 13px; }
+  header .accent { color: var(--accent); }
+
+  main { padding: 20px 24px 60px; max-width: 1100px; margin: 0 auto; }
+  .grid {
+    display: grid; gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  }
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden; text-decoration: none;
+    color: var(--text); transition: transform 0.12s, border-color 0.12s;
+    display: flex; flex-direction: column;
+  }
+  .card:hover {
+    transform: translateY(-2px); border-color: var(--accent);
+  }
+  .thumb {
+    aspect-ratio: 16 / 9; background: #000; position: relative;
+    overflow: hidden;
+  }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb .overlay {
+    position: absolute; inset: 0;
+    background: linear-gradient(to bottom, transparent 60%, rgba(0,0,0,0.7));
+  }
+  .thumb .duration {
+    position: absolute; bottom: 8px; right: 8px;
+    background: rgba(0,0,0,0.85); color: #fff; padding: 2px 6px;
+    border-radius: 3px; font-size: 11px; font-variant-numeric: tabular-nums;
+  }
+  .meta { padding: 12px 14px; flex: 1; display: flex; flex-direction: column; gap: 6px; }
+  .title {
+    font-family: "Source Serif 4", serif; font-weight: 500; font-size: 16px;
+    line-height: 1.3; color: var(--text);
+  }
+  .author { color: var(--muted); font-size: 13px; }
+  .stats {
+    margin-top: auto; color: var(--dim); font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.04em;
+    display: flex; gap: 10px; flex-wrap: wrap;
+  }
+  .stats span:not(:last-child)::after {
+    content: "·"; margin-left: 10px; color: var(--border);
+  }
+
+  .empty {
+    text-align: center; padding: 80px 20px; color: var(--muted);
+    font-style: italic;
+  }
+  .empty .hint { font-size: 13px; margin-top: 14px; color: var(--dim); }
+  .empty code {
+    background: var(--panel); padding: 3px 8px; border-radius: 4px;
+    color: var(--accent); font-size: 12px;
+  }
+
+  @media (max-width: 600px) {
+    header { padding: 20px 16px 14px; }
+    header h1 { font-size: 22px; }
+    main { padding: 16px 14px 40px; }
+    .grid { grid-template-columns: 1fr; gap: 12px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>French Study <span class="accent">·</span> Library</h1>
+  <div class="tag" id="count">Loading…</div>
+</header>
+<main>
+  <div id="grid" class="grid"></div>
+</main>
+
+<script>
+async function init() {
+  let videos = [];
+  try {
+    const r = await fetch("videos.json", { cache: "no-store" });
+    if (r.ok) videos = await r.json();
+  } catch (e) {
+    console.log("[landing] videos.json missing or unreadable:", e);
+  }
+
+  const grid = document.getElementById("grid");
+  const count = document.getElementById("count");
+
+  if (!videos.length) {
+    count.textContent = "No videos yet";
+    grid.innerHTML = `
+      <div class="empty">
+        <div>No study sites here yet.</div>
+        <div class="hint">Build one with the <code>french-youtube-site</code> skill.</div>
+      </div>
+    `;
+    return;
+  }
+
+  // Sort newest-first if there's a "added" timestamp; else original order.
+  videos.sort((a, b) => (b.added || "").localeCompare(a.added || ""));
+  count.textContent = `${videos.length} video${videos.length === 1 ? "" : "s"}`;
+
+  for (const v of videos) {
+    const card = document.createElement("a");
+    card.className = "card";
+    card.href = `${v.id}/`;
+    card.innerHTML = `
+      <div class="thumb">
+        <img src="https://i.ytimg.com/vi/${escapeAttr(v.id)}/mqdefault.jpg" alt="" loading="lazy">
+        <div class="overlay"></div>
+        ${v.duration ? `<div class="duration">${escapeHtml(v.duration)}</div>` : ""}
+      </div>
+      <div class="meta">
+        <div class="title">${escapeHtml(v.title || v.id)}</div>
+        ${v.author ? `<div class="author">${escapeHtml(v.author)}</div>` : ""}
+        <div class="stats">
+          ${v.vocab != null ? `<span>${v.vocab} vocab</span>` : ""}
+          ${v.sentences != null ? `<span>${v.sentences} sentences</span>` : ""}
+          ${v.added ? `<span>${v.added}</span>` : ""}
+        </div>
+      </div>
+    `;
+    grid.appendChild(card);
+  }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;"
+  })[c]);
+}
+function escapeAttr(s) { return encodeURIComponent(s); }
+
+init();
+
+// Service worker (offline support)
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  });
+}
+</script>
+</body>
+</html>

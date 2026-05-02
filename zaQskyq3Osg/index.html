@@ -623,10 +623,54 @@ function getProgress() {
 }
 
 function saveProgress(patch, rerender = true) {
-  const next = { ...getProgress(), ...patch };
+  const before = getProgress();
+  const next = { ...before, ...patch };
   localStorage.setItem(storageKey, JSON.stringify(next));
+  recordGlobalProgress(before, next, patch);
   if (rerender) renderSession();
   return next;
+}
+
+function getGlobalProgress() {
+  try {
+    return JSON.parse(localStorage.getItem("fr-study:global") || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveGlobalProgress(next) {
+  localStorage.setItem("fr-study:global", JSON.stringify(next));
+}
+
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function recordGlobalProgress(before, next, patch) {
+  const global = getGlobalProgress();
+  const completed = { ...(global.completed || {}) };
+  const studied = { ...(global.studied || {}) };
+  let xp = Number(global.xp || 0);
+  const events = [];
+
+  if (patch.listened && !before.listened) { xp += 10; events.push("listened"); }
+  if (patch.shadowed && !before.shadowed) { xp += 20; events.push("shadowed"); }
+  if (patch.quizDone && !before.quizDone) { xp += 20; events.push("quiz"); }
+  if (patch.answered && !before.answered) { xp += 15; events.push("answered"); }
+  if (patch.done && !before.done) { xp += 30; events.push("done"); completed[videoId] = true; }
+
+  if (!events.length) return;
+  const day = todayKey();
+  studied[day] = true;
+  saveGlobalProgress({
+    ...global,
+    xp,
+    completed,
+    studied,
+    lastStudied: day,
+    lastEvents: events,
+  });
 }
 
 function getVocabState(fr) {
@@ -637,9 +681,14 @@ function getVocabState(fr) {
 function setVocabState(fr, state) {
   const p = getProgress();
   const vocabStatus = { ...(p.vocabStatus || {}) };
+  const before = vocabStatus[fr] || "";
   if (vocabStatus[fr] === state) delete vocabStatus[fr];
   else vocabStatus[fr] = state;
   saveProgress({ vocabStatus });
+  if (state === "hard" && before !== "hard") {
+    const global = getGlobalProgress();
+    saveGlobalProgress({ ...global, xp: Number(global.xp || 0) + 2 });
+  }
   renderVocabulary();
 }
 
@@ -1243,6 +1292,13 @@ function formatInlineMd(text) {
 }
 
 init();
+
+// Deep links from the library, e.g. /video/?tab=shadow
+window.addEventListener("load", () => {
+  const params = new URLSearchParams(location.search);
+  const tab = params.get("tab");
+  if (tab && TAB_IDS.includes(tab)) selectTab(tab);
+});
 
 // ─── Service worker registration (offline support) ─────────
 if ("serviceWorker" in navigator) {

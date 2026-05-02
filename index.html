@@ -44,6 +44,16 @@
   header .accent { color: var(--accent); }
 
   main { padding: 20px 24px 60px; max-width: 1100px; margin: 0 auto; }
+  .progress {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px; margin-bottom: 18px;
+  }
+  .metric {
+    border: 1px solid var(--border); border-radius: 8px; background: var(--panel);
+    padding: 12px;
+  }
+  .metric strong { display: block; color: var(--accent); font-size: 22px; line-height: 1; }
+  .metric span { display: block; color: var(--muted); font-size: 12px; margin-top: 5px; }
   .quick-actions {
     display: grid; gap: 10px; margin-bottom: 18px;
     grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
@@ -140,6 +150,40 @@
     text-align: center; padding: 80px 20px; color: var(--muted);
     font-style: italic;
   }
+  .review {
+    display: none; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--panel); margin-bottom: 18px; overflow: hidden;
+  }
+  .review.show { display: block; }
+  .review-head {
+    display: flex; justify-content: space-between; gap: 12px;
+    padding: 12px 14px; border-bottom: 1px solid var(--border);
+  }
+  .review-title { font-weight: 600; color: var(--text); }
+  .review-sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .review-close {
+    border: 1px solid var(--border); background: transparent; color: var(--muted);
+    border-radius: 7px; padding: 6px 9px; cursor: pointer;
+  }
+  .hard-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 10px; padding: 12px;
+  }
+  .hard-card {
+    border: 1px solid var(--border); border-radius: 8px;
+    background: var(--panel-2); padding: 12px;
+  }
+  .hard-fr {
+    font-family: "Source Serif 4", serif; color: var(--accent);
+    font-size: 17px; margin-bottom: 4px;
+  }
+  .hard-en { color: var(--text); font-size: 13px; }
+  .hard-video { color: var(--dim); font-size: 11px; margin-top: 8px; }
+  .hard-actions { margin-top: 10px; display: flex; gap: 6px; }
+  .hard-actions a {
+    color: #111820; background: var(--accent); border-radius: 6px;
+    padding: 6px 8px; text-decoration: none; font-size: 12px; font-weight: 600;
+  }
   .empty .hint { font-size: 13px; margin-top: 14px; color: var(--dim); }
   .empty code {
     background: var(--panel); padding: 3px 8px; border-radius: 4px;
@@ -160,7 +204,9 @@
   <div class="tag" id="count">Loading…</div>
 </header>
 <main>
+  <div class="progress" id="progress"></div>
   <div class="quick-actions" id="quick-actions"></div>
+  <div class="review" id="hard-review"></div>
   <div class="tools">
     <input class="search" id="search" type="search" placeholder="Search videos, themes, creators…" autocomplete="off">
     <div class="chips" id="levels"></div>
@@ -176,6 +222,7 @@ let activeLevel = "all";
 let activeTheme = "all";
 let activePath = "all";
 let query = "";
+let dailyVideo = null;
 
 async function init() {
   try {
@@ -203,9 +250,78 @@ async function init() {
   allVideos.sort((a, b) =>
     (b.lesson_date || b.added || "").localeCompare(a.lesson_date || a.added || "")
   );
+  dailyVideo = pickDailyVideo();
   bindControls();
+  renderProgress();
   renderQuickActions();
   render();
+}
+
+function getGlobalProgress() {
+  try {
+    return JSON.parse(localStorage.getItem("fr-study:global") || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function getVideoProgress(id) {
+  try {
+    return JSON.parse(localStorage.getItem("fr-study:" + id) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function streakCount(studied) {
+  let count = 0;
+  const d = new Date();
+  while (true) {
+    const key = d.toISOString().slice(0, 10);
+    if (!studied || !studied[key]) break;
+    count++;
+    d.setDate(d.getDate() - 1);
+  }
+  return count;
+}
+
+function renderProgress() {
+  const p = getGlobalProgress();
+  const completed = Object.keys(p.completed || {}).length;
+  const streak = streakCount(p.studied || {});
+  const xp = Number(p.xp || 0);
+  const hard = countHardWords();
+  document.getElementById("progress").innerHTML = `
+    <div class="metric"><strong>${xp}</strong><span>XP</span></div>
+    <div class="metric"><strong>${streak}</strong><span>day streak</span></div>
+    <div class="metric"><strong>${completed}</strong><span>sessions done</span></div>
+    <div class="metric"><strong>${hard}</strong><span>hard words</span></div>
+  `;
+}
+
+function countHardWords() {
+  let total = 0;
+  for (const v of allVideos) {
+    const status = getVideoProgress(v.id).vocabStatus || {};
+    total += Object.values(status).filter(x => x === "hard").length;
+  }
+  return total;
+}
+
+function pickDailyVideo() {
+  const pool = allVideos.filter(v =>
+    (v.visibility || "public") === "public" &&
+    ((v.study_paths || []).includes("Start Here: A1") || String(v.level || "").includes("A2"))
+  );
+  const candidates = pool.length ? pool : allVideos;
+  if (!candidates.length) return null;
+  const seed = todayKey().replaceAll("-", "");
+  const idx = Number(seed) % candidates.length;
+  return candidates[idx];
 }
 
 function renderQuickActions() {
@@ -214,6 +330,7 @@ function renderQuickActions() {
   const a1Path = allVideos.find(v => (v.study_paths || []).includes("Start Here: A1"));
   const questions = allVideos.find(v => (v.themes || []).includes("questions"));
   root.innerHTML = "";
+  if (dailyVideo) root.appendChild(actionLink("Daily challenge", dailyVideo.title || dailyVideo.id, `${dailyVideo.id}/?tab=session`));
   if (latest) root.appendChild(actionLink("Continue latest", latest.title || latest.id, `${latest.id}/`));
   if (a1Path) root.appendChild(actionButton("Start Here: A1", "Show beginner-friendly lessons", () => {
     activePath = "Start Here: A1"; activeLevel = "all"; activeTheme = "all"; query = "";
@@ -230,6 +347,52 @@ function renderQuickActions() {
     document.getElementById("search").value = "";
     bindControls(); render();
   }));
+  root.appendChild(actionButton("Review hard words", "Practice words marked Hard", () => {
+    renderHardReview();
+  }));
+}
+
+async function renderHardReview() {
+  const panel = document.getElementById("hard-review");
+  panel.classList.add("show");
+  panel.innerHTML = `
+    <div class="review-head">
+      <div>
+        <div class="review-title">Hard words review</div>
+        <div class="review-sub">Loading words marked Hard in this browser…</div>
+      </div>
+      <button class="review-close" type="button">Close</button>
+    </div>
+    <div class="hard-grid"></div>
+  `;
+  panel.querySelector(".review-close").addEventListener("click", () => panel.classList.remove("show"));
+  const words = [];
+  for (const video of allVideos) {
+    const status = getVideoProgress(video.id).vocabStatus || {};
+    const hard = new Set(Object.entries(status).filter(([, s]) => s === "hard").map(([fr]) => fr));
+    if (!hard.size) continue;
+    try {
+      const r = await fetch(`${video.id}/data.json`, { cache: "no-store" });
+      if (!r.ok) continue;
+      const data = await r.json();
+      for (const item of data.vocab || []) {
+        if (hard.has(item.fr)) words.push({ ...item, video });
+      }
+    } catch {}
+  }
+  const sub = panel.querySelector(".review-sub");
+  const grid = panel.querySelector(".hard-grid");
+  sub.textContent = words.length ? `${words.length} hard word${words.length === 1 ? "" : "s"}` : "No hard words yet. Mark words as Hard inside a video.";
+  grid.innerHTML = words.slice(0, 30).map(w => `
+    <div class="hard-card">
+      <div class="hard-fr">${escapeHtml(w.fr)}</div>
+      <div class="hard-en">${escapeHtml(w.en || "")}</div>
+      ${w.zh ? `<div class="hard-en">${escapeHtml(w.zh)}</div>` : ""}
+      <div class="hard-video">${escapeHtml(w.video.title || w.video.id)}</div>
+      <div class="hard-actions"><a href="${escapeAttr(w.video.id)}/?tab=vocabulary">Open video</a></div>
+    </div>
+  `).join("");
+  renderProgress();
 }
 
 function actionLink(title, sub, href) {

@@ -1,0 +1,957 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1015">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="French Study">
+<link rel="apple-touch-icon" href="../icons/icon-180.png">
+<link rel="icon" type="image/png" href="../icons/icon-192.png">
+<link rel="manifest" href="../manifest.json">
+<title>French study</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b1015;
+    --panel: #141a22;
+    --panel-2: #1a212b;
+    --border: #232b37;
+    --text: #e6edf3;
+    --muted: #8b96a4;
+    --dim: #5c6675;
+    --accent: #f5a524;
+    --accent-soft: #3a2a14;
+    --highlight: #fef3c7;
+    --highlight-bg: rgba(245, 165, 36, 0.12);
+    --good: #4ade80;
+    --bad: #f87171;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font: 15px/1.55 "Inter", system-ui, -apple-system, sans-serif;
+    background: var(--bg); color: var(--text);
+    overflow: hidden;
+  }
+  .fr { font-family: "Source Serif 4", Georgia, serif; }
+
+  header {
+    padding: 12px 20px; background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    display: flex; gap: 14px; align-items: baseline;
+  }
+  header h1 {
+    margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -0.01em;
+    font-family: "Source Serif 4", serif; font-style: italic;
+  }
+  header .author { color: var(--muted); font-size: 13px; }
+  header .stats { margin-left: auto; color: var(--dim); font-size: 12px; }
+
+  main {
+    display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(420px, 1fr);
+    height: calc(100vh - 49px);
+  }
+
+  /* ─── Video pane ─────────────────────────────────────── */
+  #video-pane {
+    padding: 20px; display: flex; flex-direction: column; gap: 14px;
+    min-width: 0;
+  }
+  #player-wrap {
+    position: relative; padding-bottom: 56.25%; height: 0;
+    border-radius: 10px; overflow: hidden; background: #000;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.35);
+  }
+  #player-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #current-en {
+    background: var(--panel); padding: 16px 20px; border-radius: 10px;
+    border: 1px solid var(--border);
+    color: var(--text); font-size: 16px; line-height: 1.5;
+    min-height: 70px;
+    border-left: 3px solid var(--accent);
+  }
+  #current-en.empty { color: var(--dim); font-style: italic; }
+
+  /* ─── Right pane (tabs) ───────────────────────────────── */
+  #right-pane {
+    background: var(--panel); border-left: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    min-width: 0;
+  }
+  .tabs {
+    display: flex; padding: 0 14px; border-bottom: 1px solid var(--border);
+    background: var(--panel);
+  }
+  .tab {
+    background: none; border: none; color: var(--muted);
+    padding: 14px 18px; cursor: pointer; font: inherit; font-weight: 500;
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-actions {
+    margin-left: auto; display: flex; align-items: center; gap: 6px;
+    padding: 8px 0;
+  }
+  .ghost-btn {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--muted); padding: 5px 10px; border-radius: 6px;
+    cursor: pointer; font-size: 12px;
+  }
+  .ghost-btn:hover { color: var(--text); border-color: var(--dim); }
+
+  .tab-pane { flex: 1; overflow-y: auto; min-height: 0; }
+  .tab-pane.hidden { display: none; }
+
+  /* ─── Transcript ─────────────────────────────────────── */
+  .line {
+    padding: 9px 20px; cursor: pointer;
+    border-left: 3px solid transparent;
+    transition: background 0.12s;
+  }
+  .line:hover { background: var(--panel-2); }
+  .line.active {
+    background: var(--highlight-bg);
+    border-left-color: var(--accent);
+  }
+  .line .fr-text {
+    font-family: "Source Serif 4", Georgia, serif;
+    font-size: 16px; color: var(--text); line-height: 1.45;
+  }
+  .line.active .fr-text { color: var(--highlight); }
+  .line .en-inline {
+    display: block; font-size: 13px; color: var(--muted);
+    margin-top: 3px; line-height: 1.4;
+  }
+  #transcript.hide-en .en-inline { display: none; }
+  /* dedupe: only show EN under the FIRST line of a sentence */
+  .line .en-inline.dup { visibility: hidden; height: 0; margin: 0; }
+
+  .vocab-hit {
+    text-decoration: underline; text-decoration-color: var(--accent);
+    text-decoration-thickness: 2px; text-underline-offset: 4px;
+    cursor: help;
+  }
+
+  /* ─── Tooltip ────────────────────────────────────────── */
+  .tooltip {
+    position: fixed; max-width: 360px; padding: 12px 14px;
+    background: #0a0d12; color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px;
+    font-size: 13px; line-height: 1.5;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    z-index: 100; pointer-events: auto; display: none;
+  }
+  .tooltip.show { display: block; }
+  .tooltip .tip-head {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+  }
+  .tooltip .tip-fr {
+    color: var(--accent); font-weight: 600; font-size: 15px;
+    font-family: "Source Serif 4", serif;
+  }
+  .tooltip .speaker {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--muted); width: 26px; height: 26px;
+    border-radius: 50%; cursor: pointer; display: flex;
+    align-items: center; justify-content: center; padding: 0;
+    transition: color 0.1s, border-color 0.1s;
+  }
+  .tooltip .speaker:hover { color: var(--accent); border-color: var(--accent); }
+  .tooltip .speaker.playing { color: var(--accent); border-color: var(--accent); }
+  .tooltip .tip-en { color: var(--text); margin-bottom: 4px; }
+  .tooltip .tip-zh { color: var(--muted); font-size: 13px; }
+  .tooltip .tip-note {
+    color: var(--dim); font-size: 12px; font-style: italic;
+    margin-top: 6px;
+  }
+
+  /* ─── Practice ───────────────────────────────────────── */
+  #practice { padding: 28px 24px; }
+  #practice:not(.hidden) {
+    display: flex; flex-direction: column; gap: 18px;
+  }
+  .quiz-progress {
+    display: flex; gap: 4px; align-items: center;
+  }
+  .quiz-progress .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--border);
+  }
+  .quiz-progress .dot.done { background: var(--accent); }
+  .quiz-progress .dot.current {
+    background: var(--text); transform: scale(1.3);
+  }
+  .quiz-progress .dot.right { background: var(--good); }
+  .quiz-progress .dot.wrong { background: var(--bad); }
+
+  .quiz-prompt {
+    font-size: 13px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .quiz-question {
+    font-family: "Source Serif 4", serif;
+    font-size: 24px; line-height: 1.3; color: var(--text);
+    padding: 8px 0;
+  }
+  .quiz-options { display: flex; flex-direction: column; gap: 8px; }
+  .quiz-opt {
+    text-align: left; padding: 12px 16px;
+    background: var(--panel-2); border: 1px solid var(--border);
+    color: var(--text); border-radius: 8px; cursor: pointer;
+    font: inherit; transition: background 0.1s, border-color 0.1s;
+  }
+  .quiz-opt:hover:not(:disabled) {
+    background: var(--accent-soft); border-color: var(--accent);
+  }
+  .quiz-opt.right {
+    background: rgba(74, 222, 128, 0.12);
+    border-color: var(--good); color: #a7f3d0;
+  }
+  .quiz-opt.wrong {
+    background: rgba(248, 113, 113, 0.12);
+    border-color: var(--bad); color: #fecaca;
+  }
+  .quiz-opt:disabled { cursor: default; }
+
+  .quiz-feedback {
+    font-size: 13px; color: var(--muted);
+    padding: 10px 14px; background: var(--panel-2);
+    border-radius: 8px; border: 1px solid var(--border);
+    min-height: 38px;
+  }
+  .quiz-feedback .zh { color: var(--accent); margin-left: 8px; }
+  .quiz-feedback.empty { visibility: hidden; }
+  .quiz-next {
+    align-self: flex-start;
+    background: var(--accent); color: #1a1108; border: none;
+    padding: 10px 22px; border-radius: 8px; cursor: pointer;
+    font: inherit; font-weight: 600;
+  }
+  .quiz-next:hover { background: #f7b948; }
+  .quiz-next:disabled { opacity: 0.4; cursor: default; }
+
+  .quiz-end { text-align: center; padding: 30px 0; }
+  .quiz-end .score {
+    font-family: "Source Serif 4", serif; font-size: 48px;
+    color: var(--accent); margin: 8px 0;
+  }
+  .quiz-end .pct { color: var(--muted); font-size: 15px; }
+  .quiz-end .restart {
+    margin-top: 24px; background: var(--accent); color: #1a1108;
+    border: none; padding: 10px 22px; border-radius: 8px;
+    cursor: pointer; font: inherit; font-weight: 600;
+  }
+
+  /* ─── Vocabulary tab ─────────────────────────────────── */
+  #vocabulary { padding: 16px 0; }
+  .vocab-filters {
+    display: flex; flex-wrap: wrap; gap: 6px; padding: 0 20px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .chip {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--muted); padding: 5px 12px; border-radius: 14px;
+    cursor: pointer; font: inherit; font-size: 12px;
+    text-transform: capitalize;
+  }
+  .chip:hover { color: var(--text); border-color: var(--dim); }
+  .chip.active {
+    background: var(--accent); color: #1a1108; border-color: var(--accent);
+    font-weight: 600;
+  }
+  .chip .count { opacity: 0.65; margin-left: 4px; font-size: 11px; }
+  .chip.active .count { opacity: 0.85; }
+  .vocab-list { padding: 4px 0; }
+  .vocab-item {
+    padding: 14px 20px; border-bottom: 1px solid var(--border);
+    display: grid; grid-template-columns: 1fr auto; gap: 4px 12px;
+    align-items: baseline;
+  }
+  .vocab-item:hover { background: var(--panel-2); }
+  .vocab-item .vi-fr {
+    font-family: "Source Serif 4", serif; font-size: 17px;
+    color: var(--accent); font-weight: 500;
+  }
+  .vocab-item .vi-zh {
+    color: var(--muted); font-size: 13px; text-align: right;
+    grid-column: 2; grid-row: 1;
+  }
+  .vocab-item .vi-en {
+    grid-column: 1 / -1; color: var(--text); font-size: 14px; line-height: 1.45;
+  }
+  .vocab-item .vi-note {
+    grid-column: 1 / -1; color: var(--dim); font-size: 12px; font-style: italic;
+  }
+  .vocab-item .vi-cat {
+    grid-column: 2; grid-row: 2; align-self: center;
+    color: var(--dim); font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .vocab-item .speaker {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--muted); width: 28px; height: 28px;
+    border-radius: 50%; cursor: pointer; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    margin-left: 8px; vertical-align: middle;
+  }
+  .vocab-item .speaker:hover { color: var(--accent); border-color: var(--accent); }
+  .vocab-item .speaker.playing { color: var(--accent); border-color: var(--accent); }
+
+  /* ─── Grammar tab ────────────────────────────────────── */
+  #grammar { padding: 12px 0; }
+  .gr-item {
+    padding: 18px 24px; border-bottom: 1px solid var(--border);
+  }
+  .gr-item:last-child { border-bottom: none; }
+  .gr-title {
+    font-family: "Source Serif 4", serif; font-size: 18px;
+    color: var(--accent); margin-bottom: 8px; font-weight: 500;
+  }
+  .gr-summary { color: var(--text); font-size: 14px; line-height: 1.55; }
+  .gr-summary em { font-style: italic; color: var(--highlight); }
+  .gr-summary code {
+    background: var(--panel-2); padding: 2px 6px; border-radius: 4px;
+    font-size: 12px; color: var(--accent);
+  }
+  .gr-examples {
+    margin-top: 10px; display: flex; flex-direction: column; gap: 6px;
+  }
+  .gr-ex {
+    background: var(--panel-2); border-left: 3px solid var(--accent);
+    padding: 8px 14px; border-radius: 0 6px 6px 0;
+    font-family: "Source Serif 4", serif; color: var(--highlight);
+    font-style: italic; font-size: 14px;
+  }
+
+  /* ─── Mobile responsive (≤900px stacks vertically) ───── */
+  @media (max-width: 900px) {
+    body { overflow: auto; }
+    main {
+      grid-template-columns: 1fr;
+      height: auto;
+      min-height: calc(100vh - 49px);
+    }
+    #video-pane {
+      padding: 12px;
+      gap: 10px;
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+    }
+    #current-en { font-size: 14px; padding: 12px 14px; min-height: 50px; }
+    #right-pane {
+      border-left: none;
+      border-top: 1px solid var(--border);
+      min-height: 60vh;
+    }
+    .tabs {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      flex-wrap: nowrap;
+      padding: 0 8px;
+    }
+    .tab { padding: 12px 14px; font-size: 14px; flex-shrink: 0; }
+    .tab-actions { padding: 6px 4px; }
+    .ghost-btn { font-size: 11px; padding: 4px 8px; }
+    header { padding: 10px 12px; gap: 10px; flex-wrap: wrap; }
+    header h1 { font-size: 14px; }
+    header .stats { width: 100%; margin-left: 0; font-size: 11px; }
+    .line { padding: 11px 14px; }
+    .line .fr-text { font-size: 15px; }
+    .line .en-inline { font-size: 12px; }
+    .vocab-filters { padding: 0 12px 10px; }
+    .vocab-item { padding: 12px 14px; }
+    .vocab-item .vi-fr { font-size: 16px; }
+    .gr-item { padding: 14px 16px; }
+    .gr-title { font-size: 16px; }
+    #practice { padding: 18px 16px; }
+    .quiz-question { font-size: 20px; }
+    .quiz-opt { padding: 14px; }
+    /* Tooltip wider on mobile, anchored to bottom of viewport */
+    .tooltip { max-width: calc(100vw - 24px); }
+  }
+
+  /* Touch devices: vocab-hit underline becomes a tap surface */
+  @media (hover: none) {
+    .vocab-hit {
+      text-decoration-thickness: 2px;
+      padding: 0 1px;
+    }
+  }
+
+  /* ─── Scrollbar ──────────────────────────────────────── */
+  ::-webkit-scrollbar { width: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border); border-radius: 5px;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: var(--dim); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1 id="title">Loading…</h1>
+  <span class="author" id="author"></span>
+  <span class="stats" id="stats"></span>
+</header>
+
+<main>
+  <section id="video-pane">
+    <div id="player-wrap"><div id="player"></div></div>
+    <div id="current-en" class="empty">Press play — translation will appear here.</div>
+  </section>
+
+  <section id="right-pane">
+    <div class="tabs">
+      <button class="tab active" data-tab="transcript">Subtitles</button>
+      <button class="tab" data-tab="practice">Practice</button>
+      <button class="tab" data-tab="vocabulary">Vocabulary</button>
+      <button class="tab" data-tab="grammar">Grammar</button>
+      <div class="tab-actions">
+        <button id="toggle-en" class="ghost-btn">Hide English</button>
+      </div>
+    </div>
+
+    <div id="transcript" class="tab-pane"></div>
+    <div id="practice" class="tab-pane hidden"></div>
+    <div id="vocabulary" class="tab-pane hidden"></div>
+    <div id="grammar" class="tab-pane hidden"></div>
+  </section>
+</main>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+// ─── State ─────────────────────────────────────────────────
+let player, lines = [], vocab = [], lineEls = [], activeId = -1;
+let frVoice = null;
+
+// ─── Init ──────────────────────────────────────────────────
+async function init() {
+  const data = await fetch("data.json", { cache: "no-store" }).then(r => r.json());
+  document.getElementById("title").textContent = data.title;
+  document.title = data.title + " — French study";
+  document.getElementById("author").textContent = "— " + data.author;
+  lines = data.lines;
+  vocab = data.vocab;
+  window.grammarData = data.grammar || [];
+  document.getElementById("stats").textContent =
+    `${vocab.length} vocab · ${lines.length} sentences · ${window.grammarData.length} grammar`;
+
+  prepareSpeechVoice();
+  const vocabIndex = buildVocabIndex(vocab);
+  renderLines(vocabIndex);
+  renderPractice();
+  renderVocabulary();
+  renderGrammar();
+  loadYouTube(data.video_id);
+  bindTabs();
+  document.getElementById("toggle-en").addEventListener("click", toggleEn);
+}
+
+// ─── Vocab matching ────────────────────────────────────────
+function buildVocabIndex(vocab) {
+  const idx = new Map();
+  for (const v of vocab) {
+    const stripped = v.fr.toLowerCase()
+      .replace(/^(le|la|les|un|une|des|du|de la|l'|de l')\s+/, "")
+      .replace(/\s*\(.*?\)\s*/g, " ")  // drop parenthetical hints
+      .trim();
+    if (stripped && stripped.length >= 3) idx.set(stripped, v);
+    idx.set(v.fr.toLowerCase(), v);
+  }
+  return idx;
+}
+
+
+function highlightVocabCapture(text, vocabIndex) {
+  const keys = [...vocabIndex.keys()].sort((a, b) => b.length - a.length);
+  // Build alternation regex once
+  const alt = keys.filter(k => k.length >= 3).map(escapeRe).join("|");
+  if (!alt) return escapeHtml(text);
+  const re = new RegExp("(?<![\\p{L}])(" + alt + ")(?![\\p{L}])", "giu");
+  let out = "", last = 0, m;
+  while ((m = re.exec(text)) !== null) {
+    out += escapeHtml(text.slice(last, m.index));
+    const matched = m[1];
+    const v = vocabIndex.get(matched.toLowerCase());
+    const payload = btoa(unescape(encodeURIComponent(JSON.stringify(v))));
+    out += `<span class="vocab-hit" data-v="${payload}">${escapeHtml(matched)}</span>`;
+    last = m.index + matched.length;
+  }
+  out += escapeHtml(text.slice(last));
+  return out;
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;"
+  })[c]);
+}
+function escapeRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+
+// ─── Transcript rendering ──────────────────────────────────
+function renderLines(vocabIndex) {
+  const container = document.getElementById("transcript");
+  container.innerHTML = "";
+  let lastEn = null;
+  for (const line of lines) {
+    const el = document.createElement("div");
+    el.className = "line";
+    el.dataset.id = line.id;
+    el.dataset.start = line.start;
+    const isDup = line.en === lastEn;
+    el.innerHTML =
+      `<span class="fr-text">${highlightVocabCapture(line.fr, vocabIndex)}</span>` +
+      `<span class="en-inline${isDup ? " dup" : ""}">${escapeHtml(line.en)}</span>`;
+    el.addEventListener("click", () => {
+      if (player && player.seekTo) {
+        player.seekTo(line.start, true);
+        player.playVideo();
+      }
+    });
+    container.appendChild(el);
+    lineEls.push(el);
+    lastEn = line.en;
+  }
+  attachTooltips(container);
+}
+
+// ─── Tooltips with audio ───────────────────────────────────
+function attachTooltips(root) {
+  const tip = document.getElementById("tooltip");
+  let currentTarget = null;
+
+  root.addEventListener("mouseover", e => {
+    const t = e.target.closest(".vocab-hit");
+    if (!t || t === currentTarget) return;
+    currentTarget = t;
+    const v = JSON.parse(decodeURIComponent(escape(atob(t.dataset.v))));
+    const zh = v.zh ? `<div class="tip-zh">${escapeHtml(v.zh)}</div>` : "";
+    const note = v.note ? `<div class="tip-note">${escapeHtml(v.note)}</div>` : "";
+    tip.innerHTML = `
+      <div class="tip-head">
+        <span class="tip-fr">${escapeHtml(v.fr)}</span>
+        <button class="speaker" title="Play audio" aria-label="Play audio">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M3 6v4h2.5L9 13V3L5.5 6H3zm9.5 2c0-1.5-.8-2.7-2-3.4v6.8c1.2-.7 2-1.9 2-3.4z"/>
+          </svg>
+        </button>
+      </div>
+      <div class="tip-en">${escapeHtml(v.en)}</div>
+      ${zh}${note}
+    `;
+    tip.classList.add("show");
+    positionTooltip(tip, t);
+    tip.querySelector(".speaker").addEventListener("click", ev => {
+      ev.stopPropagation();
+      speak(v.fr, ev.currentTarget);
+    });
+  });
+
+  document.addEventListener("mousemove", e => {
+    if (!tip.classList.contains("show")) return;
+    if (e.target.closest(".vocab-hit") === currentTarget) return;
+    if (e.target.closest(".tooltip")) return;
+    tip.classList.remove("show");
+    currentTarget = null;
+  });
+}
+
+function positionTooltip(tip, target) {
+  const r = target.getBoundingClientRect();
+  tip.style.top = "0px"; tip.style.left = "0px";  // measure
+  requestAnimationFrame(() => {
+    const tr = tip.getBoundingClientRect();
+    let left = r.left;
+    let top = r.bottom + 8;
+    if (left + tr.width > window.innerWidth - 8)
+      left = window.innerWidth - tr.width - 8;
+    if (top + tr.height > window.innerHeight - 8)
+      top = r.top - tr.height - 8;
+    tip.style.left = left + "px";
+    tip.style.top = top + "px";
+  });
+}
+
+// ─── Speech synthesis ──────────────────────────────────────
+function prepareSpeechVoice() {
+  if (!("speechSynthesis" in window)) return;
+  const pick = () => {
+    const voices = speechSynthesis.getVoices();
+    // Prefer macOS premium "Thomas", "Audrey", "Amélie"; fall back to any fr-FR
+    frVoice =
+      voices.find(v => /fr.FR/i.test(v.lang) && /Thomas|Audrey|Amélie/i.test(v.name)) ||
+      voices.find(v => /fr.FR/i.test(v.lang)) ||
+      voices.find(v => /^fr/i.test(v.lang)) ||
+      null;
+  };
+  pick();
+  speechSynthesis.onvoiceschanged = pick;
+}
+
+function speak(text, btn) {
+  if (!("speechSynthesis" in window)) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  if (frVoice) u.voice = frVoice;
+  u.lang = "fr-FR";
+  u.rate = 0.9;
+  if (btn) {
+    btn.classList.add("playing");
+    u.onend = u.onerror = () => btn.classList.remove("playing");
+  }
+  speechSynthesis.speak(u);
+}
+
+// ─── YouTube ───────────────────────────────────────────────
+function loadYouTube(videoId) {
+  window.onYouTubeIframeAPIReady = () => {
+    player = new YT.Player("player", {
+      videoId,
+      playerVars: { rel: 0, modestbranding: 1 },
+      events: { onReady: () => setInterval(tick, 200) }
+    });
+  };
+  const tag = document.createElement("script");
+  tag.src = "https://www.youtube.com/iframe_api";
+  document.head.appendChild(tag);
+}
+
+function tick() {
+  if (!player || !player.getCurrentTime) return;
+  const t = player.getCurrentTime();
+  let lo = 0, hi = lines.length - 1, found = -1;
+  while (lo <= hi) {
+    const m = (lo + hi) >> 1;
+    if (lines[m].start <= t) { found = m; lo = m + 1; }
+    else hi = m - 1;
+  }
+  if (found === -1 || found === activeId) return;
+  if (activeId >= 0) lineEls[activeId].classList.remove("active");
+  lineEls[found].classList.add("active");
+  const pane = document.getElementById("transcript");
+  const r = lineEls[found].getBoundingClientRect();
+  const pr = pane.getBoundingClientRect();
+  if (r.top < pr.top + 80 || r.bottom > pr.bottom - 80) {
+    lineEls[found].scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+  const cur = document.getElementById("current-en");
+  cur.textContent = lines[found].en;
+  cur.classList.remove("empty");
+  activeId = found;
+}
+
+// ─── Tabs & toggles ────────────────────────────────────────
+const TAB_IDS = ["transcript", "practice", "vocabulary", "grammar"];
+function bindTabs() {
+  document.querySelectorAll(".tab").forEach(t => {
+    t.addEventListener("click", () => {
+      document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+      t.classList.add("active");
+      const which = t.dataset.tab;
+      for (const id of TAB_IDS) {
+        document.getElementById(id).classList.toggle("hidden", id !== which);
+      }
+      document.getElementById("toggle-en").style.visibility =
+        which === "transcript" ? "visible" : "hidden";
+    });
+  });
+}
+
+function toggleEn() {
+  const tr = document.getElementById("transcript");
+  tr.classList.toggle("hide-en");
+  const btn = document.getElementById("toggle-en");
+  btn.textContent = tr.classList.contains("hide-en") ? "Show English" : "Hide English";
+}
+
+// ─── Practice (multi-choice quiz) ──────────────────────────
+const QUIZ_LEN = 10;
+let quizQuestions = [], quizIdx = 0, quizScore = 0;
+
+function renderPractice() {
+  buildQuiz();
+  showQuestion();
+}
+
+function buildQuiz() {
+  const usable = vocab.filter(v => v.en && v.en.length > 1);
+  const shuffled = [...usable].sort(() => Math.random() - 0.5);
+  const picked = shuffled.slice(0, QUIZ_LEN);
+  quizQuestions = picked.map(answer => {
+    // Direction: 50/50 FR→EN or EN→FR
+    const frToEn = Math.random() < 0.5;
+    const distractors = shuffled
+      .filter(v => v !== answer && (frToEn ? v.en : v.fr) !== (frToEn ? answer.en : answer.fr))
+      .slice(0, 3);
+    const options = [...distractors, answer]
+      .sort(() => Math.random() - 0.5);
+    return { answer, options, frToEn };
+  });
+  quizIdx = 0;
+  quizScore = 0;
+}
+
+function shortenEn(en) {
+  // For options, take first clause/sentence and cap length
+  let s = en.split(/[—;]/)[0].trim();
+  if (s.length > 80) s = s.slice(0, 77) + "…";
+  return s;
+}
+
+function showQuestion() {
+  const root = document.getElementById("practice");
+  if (quizIdx >= QUIZ_LEN) {
+    showQuizEnd();
+    return;
+  }
+  const q = quizQuestions[quizIdx];
+  const promptText = q.frToEn ? "Translate from French" : "Translate to French";
+  const questionText = q.frToEn ? q.answer.fr : shortenEn(q.answer.en);
+  const questionClass = q.frToEn ? "fr" : "";
+
+  const dots = quizQuestions.map((_, i) => {
+    let cls = "dot";
+    if (i < quizIdx) cls += " " + (quizQuestions[i]._result || "done");
+    if (i === quizIdx) cls += " current";
+    return `<div class="${cls}"></div>`;
+  }).join("");
+
+  root.innerHTML = `
+    <div class="quiz-progress">${dots}</div>
+    <div class="quiz-prompt">${promptText} · ${quizIdx + 1} / ${QUIZ_LEN}</div>
+    <div class="quiz-question ${questionClass}">${escapeHtml(questionText)}</div>
+    <div class="quiz-options"></div>
+    <div class="quiz-feedback empty"> </div>
+    <button class="quiz-next" disabled>Next →</button>
+  `;
+  const optsEl = root.querySelector(".quiz-options");
+  q.options.forEach(opt => {
+    const btn = document.createElement("button");
+    btn.className = "quiz-opt" + (q.frToEn ? "" : " fr");
+    btn.textContent = q.frToEn ? shortenEn(opt.en) : opt.fr;
+    btn.addEventListener("click", () => answerQuestion(btn, opt));
+    optsEl.appendChild(btn);
+  });
+  root.querySelector(".quiz-next").addEventListener("click", () => {
+    quizIdx++;
+    showQuestion();
+  });
+}
+
+function answerQuestion(btn, picked) {
+  const q = quizQuestions[quizIdx];
+  const root = document.getElementById("practice");
+  const opts = root.querySelectorAll(".quiz-opt");
+  const isRight = picked === q.answer;
+  opts.forEach(o => o.disabled = true);
+  // mark all
+  opts.forEach(o => {
+    const text = o.textContent;
+    const expected = q.frToEn ? shortenEn(q.answer.en) : q.answer.fr;
+    if (text === expected) o.classList.add("right");
+  });
+  if (!isRight) btn.classList.add("wrong");
+  q._result = isRight ? "right" : "wrong";
+  if (isRight) quizScore++;
+  // feedback
+  const fb = root.querySelector(".quiz-feedback");
+  fb.classList.remove("empty");
+  const a = q.answer;
+  const zh = a.zh ? ` <span class="zh">${escapeHtml(a.zh)}</span>` : "";
+  fb.innerHTML = `<strong class="fr" style="color:var(--accent)">${escapeHtml(a.fr)}</strong> — ${escapeHtml(a.en)}${zh}`;
+  root.querySelector(".quiz-next").disabled = false;
+  // refresh dots
+  const dots = root.querySelector(".quiz-progress");
+  const ds = dots.children;
+  ds[quizIdx].classList.remove("current");
+  ds[quizIdx].classList.add(q._result);
+}
+
+function showQuizEnd() {
+  const root = document.getElementById("practice");
+  const pct = Math.round((quizScore / QUIZ_LEN) * 100);
+  const msg =
+    pct === 100 ? "Perfect 🎯" :
+    pct >= 80   ? "Strong"  :
+    pct >= 60   ? "Solid"   :
+                  "Keep going";
+  root.innerHTML = `
+    <div class="quiz-end">
+      <div style="color:var(--muted);font-size:13px;text-transform:uppercase;letter-spacing:0.05em">${msg}</div>
+      <div class="score">${quizScore} / ${QUIZ_LEN}</div>
+      <div class="pct">${pct}% — across ${vocab.length} vocab</div>
+      <button class="restart">New quiz</button>
+    </div>
+  `;
+  root.querySelector(".restart").addEventListener("click", () => {
+    buildQuiz();
+    showQuestion();
+  });
+}
+
+// ─── Vocabulary tab ────────────────────────────────────────
+const CATEGORY_LABELS = {
+  fishing: "Fishing", fish: "Fish", ecology: "Ecology",
+  idiom: "Idiom", slang: "Slang", general: "Other"
+};
+const SPEAKER_SVG = `<svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M3 6v4h2.5L9 13V3L5.5 6H3zm9.5 2c0-1.5-.8-2.7-2-3.4v6.8c1.2-.7 2-1.9 2-3.4z"/></svg>`;
+
+function renderVocabulary() {
+  const root = document.getElementById("vocabulary");
+  console.log("[vocab] rendering", vocab.length, "entries");
+  const counts = {};
+  for (const v of vocab) counts[v.category] = (counts[v.category] || 0) + 1;
+  const cats = Object.keys(counts).sort();
+
+  // Build header (filter chips)
+  root.innerHTML = "";
+  const filters = document.createElement("div");
+  filters.className = "vocab-filters";
+  const allBtn = makeChip("all", "All", vocab.length, true);
+  filters.appendChild(allBtn);
+  for (const c of cats) {
+    filters.appendChild(makeChip(c, CATEGORY_LABELS[c] || c, counts[c]));
+  }
+  root.appendChild(filters);
+
+  const list = document.createElement("div");
+  list.className = "vocab-list";
+  root.appendChild(list);
+
+  let active = "all";
+  const draw = () => {
+    list.innerHTML = "";
+    const items = active === "all" ? vocab : vocab.filter(v => v.category === active);
+    for (const v of items) list.appendChild(makeVocabCard(v));
+  };
+  draw();
+
+  filters.addEventListener("click", e => {
+    const chip = e.target.closest(".chip");
+    if (!chip) return;
+    filters.querySelectorAll(".chip").forEach(c => c.classList.remove("active"));
+    chip.classList.add("active");
+    active = chip.dataset.cat;
+    draw();
+  });
+}
+
+function makeChip(cat, label, count, isActive) {
+  const b = document.createElement("button");
+  b.className = "chip" + (isActive ? " active" : "");
+  b.dataset.cat = cat;
+  b.innerHTML = `${escapeHtml(label)}<span class="count">${count}</span>`;
+  return b;
+}
+
+function makeVocabCard(v) {
+  const item = document.createElement("div");
+  item.className = "vocab-item";
+  const fr = document.createElement("div");
+  fr.className = "vi-fr";
+  fr.textContent = v.fr + " ";
+  const sp = document.createElement("button");
+  sp.className = "speaker";
+  sp.title = "Play audio";
+  sp.setAttribute("aria-label", "Play audio");
+  sp.innerHTML = SPEAKER_SVG;
+  sp.addEventListener("click", ev => {
+    ev.stopPropagation();
+    speak(v.fr, sp);
+  });
+  fr.appendChild(sp);
+  item.appendChild(fr);
+
+  if (v.zh) {
+    const zh = document.createElement("div");
+    zh.className = "vi-zh";
+    zh.textContent = v.zh;
+    item.appendChild(zh);
+  }
+  const en = document.createElement("div");
+  en.className = "vi-en";
+  en.textContent = v.en;
+  item.appendChild(en);
+
+  if (v.note) {
+    const note = document.createElement("div");
+    note.className = "vi-note";
+    note.textContent = v.note;
+    item.appendChild(note);
+  }
+  const cat = document.createElement("div");
+  cat.className = "vi-cat";
+  cat.textContent = CATEGORY_LABELS[v.category] || v.category;
+  item.appendChild(cat);
+
+  return item;
+}
+
+// ─── Grammar tab ───────────────────────────────────────────
+function renderGrammar() {
+  const root = document.getElementById("grammar");
+  const data = window.grammarData || [];
+  console.log("[grammar] rendering", data.length, "items");
+  root.innerHTML = "";
+  if (!data.length) {
+    root.innerHTML = `<div style="padding:24px;color:var(--muted)">No grammar notes for this video.</div>`;
+    return;
+  }
+  for (const g of data) {
+    const item = document.createElement("div");
+    item.className = "gr-item";
+    const title = document.createElement("div");
+    title.className = "gr-title";
+    title.textContent = g.title;
+    item.appendChild(title);
+    const summary = document.createElement("div");
+    summary.className = "gr-summary";
+    summary.innerHTML = formatInlineMd(g.summary || "");
+    item.appendChild(summary);
+    if (g.examples && g.examples.length) {
+      const exs = document.createElement("div");
+      exs.className = "gr-examples";
+      for (const ex of g.examples) {
+        const e = document.createElement("div");
+        e.className = "gr-ex";
+        e.textContent = "« " + ex + " »";
+        exs.appendChild(e);
+      }
+      item.appendChild(exs);
+    }
+    root.appendChild(item);
+  }
+}
+
+function formatInlineMd(text) {
+  let s = escapeHtml(text);
+  s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  s = s.replace(/(^|[^*])\*([^*]+)\*/g, "$1<em>$2</em>");
+  s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
+  return s;
+}
+
+init();
+
+// ─── Service worker registration (offline support) ─────────
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("../sw.js").catch(err =>
+      console.log("[sw] registration failed:", err)
+    );
+  });
+}
+</script>
+</body>
+</html>

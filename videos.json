@@ -694,5 +694,30 @@
     ],
     "visibility": "public",
     "status": "to-review"
+  },
+  {
+    "id": "cRAZIp4jBuI",
+    "title": "50 Questions et réponses en Français",
+    "author": "French mornings with Elisa",
+    "vocab": 64,
+    "sentences": 190,
+    "duration": "33:45",
+    "added": "2026-05-03",
+    "note": "/Users/mirandala/Documents/Miranda-Vault/Languages/French/Youtube Lessons/2026-05-03-french-mornings-50-questions-reponses.md",
+    "level": "A1-A2",
+    "themes": [
+      "questions",
+      "daily life",
+      "spoken French",
+      "conversation"
+    ],
+    "study_paths": [
+      "Start Here: A1",
+      "A2 Real Conversations",
+      "Daily Life French",
+      "Spoken French Survival"
+    ],
+    "visibility": "public",
+    "status": "to-review"
   }
 ]
